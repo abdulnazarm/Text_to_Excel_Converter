@@ -1,0 +1,1076 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CSV/TXT to Excel Converter</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            padding: 40px;
+            max-width: 900px;
+            margin: 0 auto;
+            max-height: 95vh;
+            overflow-y: auto;
+        }
+
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+
+        .step-indicator {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 30px;
+            position: relative;
+        }
+
+        .step-indicator::before {
+            content: '';
+            position: absolute;
+            top: 20px;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: #e0e0e0;
+            z-index: 0;
+        }
+
+        .step {
+            flex: 1;
+            text-align: center;
+            position: relative;
+            z-index: 1;
+        }
+
+        .step-circle {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: #e0e0e0;
+            color: #999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 10px;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+
+        .step.active .step-circle {
+            background: #667eea;
+            color: white;
+        }
+
+        .step.completed .step-circle {
+            background: #4CAF50;
+            color: white;
+        }
+
+        .step-label {
+            font-size: 12px;
+            color: #666;
+            font-weight: 600;
+        }
+
+        .section {
+            display: none;
+            animation: fadeIn 0.3s;
+        }
+
+        .section.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .upload-area {
+            border: 3px dashed #667eea;
+            border-radius: 15px;
+            padding: 40px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-bottom: 25px;
+            background: #f8f9ff;
+        }
+
+        .upload-area:hover {
+            border-color: #764ba2;
+            background: #f0f2ff;
+        }
+
+        .upload-area.dragover {
+            border-color: #764ba2;
+            background: #e8ebff;
+            transform: scale(1.02);
+        }
+
+        .upload-icon {
+            font-size: 48px;
+            margin-bottom: 15px;
+        }
+
+        .upload-text {
+            color: #667eea;
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .upload-subtext {
+            color: #999;
+            font-size: 14px;
+        }
+
+        #fileInput {
+            display: none;
+        }
+
+        .file-info {
+            background: #f0f2ff;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+
+        .file-name {
+            color: #333;
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+
+        .file-size {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .setting-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            color: #333;
+            font-weight: 600;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+
+        input[type="number"],
+        input[type="text"],
+        select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+
+        input:focus, select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .hint {
+            color: #999;
+            font-size: 12px;
+            margin-top: 5px;
+        }
+
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            margin: 10px 0;
+        }
+
+        .checkbox-group input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            margin-right: 10px;
+            cursor: pointer;
+        }
+
+        .checkbox-group label {
+            margin: 0;
+            font-weight: 500;
+            cursor: pointer;
+        }
+
+        .column-selector {
+            max-height: 400px;
+            overflow-y: auto;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            padding: 15px;
+            background: #f8f9ff;
+        }
+
+        .column-item {
+            background: white;
+            padding: 12px;
+            margin-bottom: 10px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            cursor: move;
+            transition: all 0.2s;
+            border: 2px solid #e0e0e0;
+        }
+
+        .column-item:hover {
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .column-item.dragging {
+            opacity: 0.5;
+        }
+
+        .column-item input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+        }
+
+        .drag-handle {
+            cursor: move;
+            color: #999;
+            font-size: 20px;
+        }
+
+        .column-name {
+            flex: 1;
+            font-weight: 500;
+            color: #333;
+        }
+
+        .column-order {
+            background: #667eea;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .btn {
+            padding: 14px 30px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin: 5px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-secondary {
+            background: #e0e0e0;
+            color: #333;
+        }
+
+        .btn-secondary:hover {
+            background: #d0d0d0;
+        }
+
+        .btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .button-group {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .select-all-controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .select-all-controls button {
+            padding: 8px 16px;
+            font-size: 13px;
+        }
+
+        .progress-container {
+            display: none;
+            margin-top: 20px;
+        }
+
+        .progress-container.show {
+            display: block;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #e0e0e0;
+            border-radius: 10px;
+            overflow: hidden;
+            margin-bottom: 10px;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            width: 0%;
+            transition: width 0.3s;
+        }
+
+        .progress-text {
+            text-align: center;
+            color: #667eea;
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .status-message {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+            font-weight: 600;
+            display: none;
+        }
+
+        .status-message.show {
+            display: block;
+        }
+
+        .status-message.success {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status-message.error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .preview-section {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f8f9ff;
+            border-radius: 10px;
+        }
+
+        .preview-title {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .preview-table {
+            overflow-x: auto;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .preview-table table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+
+        .preview-table th {
+            background: #CCCCCC;
+            color: #333;
+            padding: 8px;
+            text-align: left;
+            font-weight: 600;
+            position: sticky;
+            top: 0;
+        }
+
+        .preview-table td {
+            padding: 8px;
+            border-bottom: 1px solid #ddd;
+        }
+
+        .preview-table tr:nth-child(even) {
+            background: #F2F2F2;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 25px;
+            }
+
+            .step-indicator {
+                flex-wrap: wrap;
+            }
+
+            .step {
+                margin-bottom: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📊 CSV/TXT to Excel Converter</h1>
+        <p class="subtitle">Professional file conversion with column selection and formatting</p>
+
+        <!-- Step Indicator -->
+        <div class="step-indicator">
+            <div class="step active" data-step="1">
+                <div class="step-circle">1</div>
+                <div class="step-label">Upload File</div>
+            </div>
+            <div class="step" data-step="2">
+                <div class="step-circle">2</div>
+                <div class="step-label">Parse Settings</div>
+            </div>
+            <div class="step" data-step="3">
+                <div class="step-circle">3</div>
+                <div class="step-label">Select Columns</div>
+            </div>
+            <div class="step" data-step="4">
+                <div class="step-circle">4</div>
+                <div class="step-label">Configure Output</div>
+            </div>
+        </div>
+
+        <!-- Step 1: Upload -->
+        <div class="section active" id="step1">
+            <div class="upload-area" id="uploadArea">
+                <div class="upload-icon">📁</div>
+                <div class="upload-text">Click to browse or drag & drop</div>
+                <div class="upload-subtext">Upload CSV or TXT file</div>
+            </div>
+            <input type="file" id="fileInput" accept=".csv,.txt">
+            
+            <div id="fileInfoContainer" style="display:none;">
+                <div class="file-info">
+                    <div class="file-name" id="fileName"></div>
+                    <div class="file-size" id="fileSize"></div>
+                </div>
+                <div class="button-group">
+                    <button class="btn btn-primary" onclick="goToStep(2)">Next: Parse Settings →</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Step 2: Parse Settings -->
+        <div class="section" id="step2">
+            <div class="setting-group">
+                <label for="delimiter">Delimiter</label>
+                <select id="delimiter">
+                    <option value=",">Comma (,)</option>
+                    <option value="\t">Tab (\t)</option>
+                    <option value=";">Semicolon (;)</option>
+                    <option value="|">Pipe (|)</option>
+                    <option value=" ">Space</option>
+                </select>
+            </div>
+
+            <div class="setting-group">
+                <div class="checkbox-group">
+                    <input type="checkbox" id="ignoreLineBreaks">
+                    <label for="ignoreLineBreaks">Ignore line breaks within quoted fields</label>
+                </div>
+                <div class="hint">Enable this if your data contains multi-line text in quotes</div>
+            </div>
+
+            <div class="setting-group">
+                <div class="checkbox-group">
+                    <input type="checkbox" id="ignoreQuotes">
+                    <label for="ignoreQuotes">Treat quotes as regular characters</label>
+                </div>
+                <div class="hint">Enable this if quotes are not used to enclose fields</div>
+            </div>
+
+            <div class="setting-group">
+                <div class="checkbox-group">
+                    <input type="checkbox" id="hasHeaders" checked>
+                    <label for="hasHeaders">First row contains headers</label>
+                </div>
+            </div>
+
+            <div class="button-group">
+                <button class="btn btn-secondary" onclick="goToStep(1)">← Back</button>
+                <button class="btn btn-primary" onclick="parseFile()">Parse File →</button>
+            </div>
+        </div>
+
+        <!-- Step 3: Column Selection -->
+        <div class="section" id="step3">
+            <div class="preview-section">
+                <div class="preview-title">📋 Data Preview (first 5 rows)</div>
+                <div class="preview-table" id="previewTable"></div>
+            </div>
+
+            <div style="margin-top: 20px;">
+                <label>Select and Reorder Columns</label>
+                <div class="hint">Drag columns to reorder. Check/uncheck to include/exclude.</div>
+                
+                <div class="select-all-controls">
+                    <button class="btn btn-secondary" onclick="selectAllColumns()">Select All</button>
+                    <button class="btn btn-secondary" onclick="deselectAllColumns()">Deselect All</button>
+                </div>
+
+                <div class="column-selector" id="columnSelector"></div>
+            </div>
+
+            <div class="button-group">
+                <button class="btn btn-secondary" onclick="goToStep(2)">← Back</button>
+                <button class="btn btn-primary" onclick="validateAndGoToStep4()">Next: Configure Output →</button>
+            </div>
+        </div>
+
+        <!-- Step 4: Output Configuration -->
+        <div class="section" id="step4">
+            <div class="setting-group">
+                <label for="rowsPerSheet">Rows per sheet</label>
+                <input type="number" id="rowsPerSheet" value="1000000" min="1" max="1048576">
+                <div class="hint">Excel maximum: 1,048,576 rows per sheet</div>
+            </div>
+
+            <div class="setting-group">
+                <label for="sheetPrefix">Sheet name prefix</label>
+                <input type="text" id="sheetPrefix" value="Data" placeholder="e.g., Data, Sales, Report">
+                <div class="hint">Sheets will be named: [Prefix]_1, [Prefix]_2, etc.</div>
+            </div>
+
+            <div class="setting-group">
+                <label for="outputFileName">Output file name</label>
+                <input type="text" id="outputFileName" placeholder="Leave empty for auto-naming">
+                <div class="hint">If empty, adds "_converted" to original filename</div>
+            </div>
+
+            <div class="setting-group">
+                <div class="checkbox-group">
+                    <input type="checkbox" id="removeEmptyRows">
+                    <label for="removeEmptyRows">Remove empty rows</label>
+                </div>
+            </div>
+
+            <div class="setting-group">
+                <div class="checkbox-group">
+                    <input type="checkbox" id="trimWhitespace" checked>
+                    <label for="trimWhitespace">Trim whitespace from cells</label>
+                </div>
+            </div>
+
+            <div class="preview-section">
+                <div class="preview-title">✨ Format Preview</div>
+                <div class="preview-table">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Header 1</th>
+                                <th>Header 2</th>
+                                <th>Header 3</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Row 1, Col 1</td>
+                                <td>Row 1, Col 2</td>
+                                <td>Row 1, Col 3</td>
+                            </tr>
+                            <tr>
+                                <td>Row 2, Col 1</td>
+                                <td>Row 2, Col 2</td>
+                                <td>Row 2, Col 3</td>
+                            </tr>
+                            <tr>
+                                <td>Row 3, Col 1</td>
+                                <td>Row 3, Col 2</td>
+                                <td>Row 3, Col 3</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="hint" style="margin-top: 10px;">Headers: #CCCCCC | Alternating rows: #F2F2F2</div>
+            </div>
+
+            <div class="button-group">
+                <button class="btn btn-secondary" onclick="goToStep(3)">← Back</button>
+                <button class="btn btn-primary" onclick="convertToExcel()">🚀 Convert to Excel</button>
+            </div>
+        </div>
+
+        <div class="progress-container" id="progressContainer">
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill"></div>
+            </div>
+            <div class="progress-text" id="progressText">Processing...</div>
+        </div>
+
+        <div class="status-message" id="statusMessage"></div>
+    </div>
+
+    <script>
+        let selectedFile = null;
+        let parsedData = [];
+        let headers = [];
+        let columnOrder = [];
+
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+
+        // Upload handlers
+        uploadArea.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', (e) => handleFile(e.target.files[0]));
+
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragover');
+        });
+
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            handleFile(e.dataTransfer.files[0]);
+        });
+
+        function handleFile(file) {
+            if (!file) return;
+
+            const ext = file.name.toLowerCase();
+            if (!ext.endsWith('.csv') && !ext.endsWith('.txt')) {
+                showStatus('Please select a CSV or TXT file', 'error');
+                return;
+            }
+
+            selectedFile = file;
+            document.getElementById('fileName').textContent = `📄 ${file.name}`;
+            document.getElementById('fileSize').textContent = `Size: ${formatFileSize(file.size)}`;
+            document.getElementById('fileInfoContainer').style.display = 'block';
+            
+            // Auto-detect delimiter for TXT files
+            if (ext.endsWith('.txt')) {
+                document.getElementById('delimiter').value = '\t';
+            }
+        }
+
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+        }
+
+        function goToStep(step) {
+            document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+            document.getElementById(`step${step}`).classList.add('active');
+
+            document.querySelectorAll('.step').forEach((s, i) => {
+                s.classList.remove('active', 'completed');
+                if (i + 1 === step) {
+                    s.classList.add('active');
+                } else if (i + 1 < step) {
+                    s.classList.add('completed');
+                }
+            });
+
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function parseFile() {
+            if (!selectedFile) return;
+
+            const delimiter = document.getElementById('delimiter').value.replace('\\t', '\t');
+            const ignoreLineBreaks = document.getElementById('ignoreLineBreaks').checked;
+            const ignoreQuotes = document.getElementById('ignoreQuotes').checked;
+            const hasHeaders = document.getElementById('hasHeaders').checked;
+
+            updateProgress(10, 'Reading file...');
+            document.getElementById('progressContainer').classList.add('show');
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    updateProgress(30, 'Parsing data...');
+                    
+                    Papa.parse(e.target.result, {
+                        delimiter: delimiter,
+                        newline: ignoreLineBreaks ? '' : undefined,
+                        quoteChar: ignoreQuotes ? '\0' : '"',
+                        escapeChar: ignoreQuotes ? '\0' : '"',
+                        header: false,
+                        skipEmptyLines: 'greedy',
+                        complete: function(results) {
+                            parsedData = results.data;
+                            
+                            if (parsedData.length === 0) {
+                                showStatus('Error: File is empty or could not be parsed', 'error');
+                                document.getElementById('progressContainer').classList.remove('show');
+                                return;
+                            }
+                            
+                            if (hasHeaders && parsedData.length > 0) {
+                                headers = parsedData[0].map(h => String(h || '').trim());
+                                parsedData = parsedData.slice(1);
+                            } else {
+                                headers = parsedData[0].map((_, i) => `Column_${i + 1}`);
+                            }
+
+                            columnOrder = headers.map((h, i) => ({ 
+                                name: h || `Column_${i + 1}`, 
+                                index: i, 
+                                selected: true 
+                            }));
+                            
+                            updateProgress(70, 'Generating preview...');
+                            displayPreview();
+                            displayColumnSelector();
+                            
+                            updateProgress(100, 'Complete!');
+                            setTimeout(() => {
+                                document.getElementById('progressContainer').classList.remove('show');
+                                goToStep(3);
+                                showStatus('File parsed successfully!', 'success');
+                            }, 500);
+                        },
+                        error: function(error) {
+                            showStatus('Error parsing file: ' + error.message, 'error');
+                            document.getElementById('progressContainer').classList.remove('show');
+                        }
+                    });
+                } catch (error) {
+                    showStatus('Error: ' + error.message, 'error');
+                    document.getElementById('progressContainer').classList.remove('show');
+                }
+            };
+
+            reader.onerror = function() {
+                showStatus('Error reading file', 'error');
+                document.getElementById('progressContainer').classList.remove('show');
+            };
+
+            reader.readAsText(selectedFile);
+        }
+
+        function displayPreview() {
+            const previewRows = parsedData.slice(0, 5);
+            let html = '<table><thead><tr>';
+            
+            headers.forEach(h => {
+                html += `<th>${escapeHtml(h)}</th>`;
+            });
+            html += '</tr></thead><tbody>';
+            
+            previewRows.forEach(row => {
+                html += '<tr>';
+                headers.forEach((_, i) => {
+                    const cell = row[i] !== undefined ? row[i] : '';
+                    html += `<td>${escapeHtml(String(cell))}</td>`;
+                });
+                html += '</tr>';
+            });
+            
+            html += '</tbody></table>';
+            document.getElementById('previewTable').innerHTML = html;
+        }
+
+        function displayColumnSelector() {
+            const container = document.getElementById('columnSelector');
+            container.innerHTML = '';
+            
+            columnOrder.forEach((col, index) => {
+                const div = document.createElement('div');
+                div.className = 'column-item';
+                div.draggable = true;
+                div.dataset.index = index;
+                
+                div.innerHTML = `
+                    <span class="drag-handle">☰</span>
+                    <input type="checkbox" ${col.selected ? 'checked' : ''} 
+                           onchange="toggleColumn(${index})" id="col-${index}">
+                    <label for="col-${index}" class="column-name">${escapeHtml(col.name)}</label>
+                    <span class="column-order">${index + 1}</span>
+                `;
+                
+                div.addEventListener('dragstart', handleDragStart);
+                div.addEventListener('dragover', handleDragOver);
+                div.addEventListener('drop', handleDrop);
+                div.addEventListener('dragend', handleDragEnd);
+                
+                container.appendChild(div);
+            });
+        }
+
+        let draggedElement = null;
+
+        function handleDragStart(e) {
+            draggedElement = this;
+            this.classList.add('dragging');
+            e.dataTransfer.effectAllowed = 'move';
+        }
+
+        function handleDragOver(e) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            return false;
+        }
+
+        function handleDrop(e) {
+            e.stopPropagation();
+            e.preventDefault();
+            
+            if (draggedElement !== this) {
+                const fromIndex = parseInt(draggedElement.dataset.index);
+                const toIndex = parseInt(this.dataset.index);
+                
+                const item = columnOrder.splice(fromIndex, 1)[0];
+                columnOrder.splice(toIndex, 0, item);
+                
+                displayColumnSelector();
+            }
+            
+            return false;
+        }
+
+        function handleDragEnd(e) {
+            this.classList.remove('dragging');
+        }
+
+        function toggleColumn(index) {
+            columnOrder[index].selected = !columnOrder[index].selected;
+        }
+
+        function selectAllColumns() {
+            columnOrder.forEach(col => col.selected = true);
+            displayColumnSelector();
+        }
+
+        function deselectAllColumns() {
+            columnOrder.forEach(col => col.selected = false);
+            displayColumnSelector();
+        }
+
+        function validateAndGoToStep4() {
+            const selectedColumns = columnOrder.filter(col => col.selected);
+            
+            if (selectedColumns.length === 0) {
+                showStatus('Please select at least one column', 'error');
+                return;
+            }
+            
+            goToStep(4);
+        }
+
+        function convertToExcel() {
+            const selectedColumns = columnOrder.filter(col => col.selected);
+            
+            if (selectedColumns.length === 0) {
+                showStatus('Please select at least one column', 'error');
+                return;
+            }
+
+            const maxRows = parseInt(document.getElementById('rowsPerSheet').value);
+            if (maxRows <= 0 || maxRows > 1048576) {
+                showStatus('Please enter a valid number (1-1,048,576)', 'error');
+                return;
+            }
+
+            const prefix = document.getElementById('sheetPrefix').value.trim() || 'Data';
+            const removeEmpty = document.getElementById('removeEmptyRows').checked;
+            const trimWS = document.getElementById('trimWhitespace').checked;
+
+            document.getElementById('progressContainer').classList.add('show');
+            updateProgress(0, 'Preparing data...');
+
+            setTimeout(() => {
+                try {
+                    let data = JSON.parse(JSON.stringify(parsedData));
+                    
+                    updateProgress(20, 'Processing columns...');
+                    
+                    // Filter and reorder columns
+                    data = data.map(row => 
+                        selectedColumns.map(col => row[col.index] !== undefined ? row[col.index] : '')
+                    );
+                    
+                    updateProgress(40, 'Cleaning data...');
+                    
+                    // Remove empty rows
+                    if (removeEmpty) {
+                        data = data.filter(row => row.some(cell => {
+                            const val = String(cell || '').trim();
+                            return val !== '';
+                        }));
+                    }
+                    
+                    // Trim whitespace
+                    if (trimWS) {
+                        data = data.map(row => row.map(cell => 
+                            typeof cell === 'string' ? cell.trim() : cell
+                        ));
+                    }
+                    
+                    updateProgress(60, 'Creating Excel workbook...');
+                    
+                    const workbook = XLSX.utils.book_new();
+                    const sheetCount = Math.ceil(data.length / maxRows);
+                    
+                    const headerRow = selectedColumns.map(col => col.name);
+                    
+                    for (let i = 0; i < sheetCount; i++) {
+                        const start = i * maxRows;
+                        const end = Math.min(start + maxRows, data.length);
+                        const sheetData = [headerRow, ...data.slice(start, end)];
+                        
+                        const worksheet = XLSX.utils.aoa_to_sheet(sheetData);
+                        
+                        // Set column widths
+                        worksheet['!cols'] = headerRow.map(() => ({ wch: 15 }));
+                        
+                        // Apply professional formatting
+                        const range = XLSX.utils.decode_range(worksheet['!ref']);
+                        
+                        for (let R = range.s.r; R <= range.e.r; R++) {
+                            for (let C = range.s.c; C <= range.e.c; C++) {
+                                const cellAddress = XLSX.utils.encode_cell({ r: R, c: C });
+                                if (!worksheet[cellAddress]) continue;
+                                
+                                // Create cell style
+                                worksheet[cellAddress].s = {
+                                    fill: {
+                                        fgColor: { rgb: R === 0 ? 'CCCCCC' : (R % 2 === 0 ? 'F2F2F2' : 'FFFFFF') }
+                                    },
+                                    font: {
+                                        bold: R === 0,
+                                        color: { rgb: '000000' }
+                                    },
+                                    alignment: {
+                                        vertical: 'center',
+                                        horizontal: 'left',
+                                        wrapText: false
+                                    },
+                                    border: {
+                                        top: { style: 'thin', color: { rgb: 'D3D3D3' } },
+                                        bottom: { style: 'thin', color: { rgb: 'D3D3D3' } },
+                                        left: { style: 'thin', color: { rgb: 'D3D3D3' } },
+                                        right: { style: 'thin', color: { rgb: 'D3D3D3' } }
+                                    }
+                                };
+                            }
+                        }
+                        
+                        const sheetName = `${prefix}_${i + 1}`;
+                        XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
+                        
+                        updateProgress(60 + (30 * (i + 1) / sheetCount), `Creating sheet ${i + 1} of ${sheetCount}...`);
+                    }
+                    
+                    updateProgress(95, 'Generating Excel file...');
+                    
+                    const excelBuffer = XLSX.write(workbook, { 
+                        bookType: 'xlsx', 
+                        type: 'array',
+                        cellStyles: true
+                    });
+                    
+                    let downloadName = document.getElementById('outputFileName').value.trim();
+                    if (!downloadName) {
+                        downloadName = selectedFile.name.replace(/\.(csv|txt)$/i, '_converted.xlsx');
+                    } else if (!downloadName.toLowerCase().endsWith('.xlsx')) {
+                        downloadName += '.xlsx';
+                    }
+                    
+                    const blob = new Blob([excelBuffer], { 
+                        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
+                    });
+                    
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = downloadName;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                    
+                    updateProgress(100, 'Complete!');
+                    showStatus(`✓ Success! ${sheetCount} sheet(s) created with ${data.length.toLocaleString()} rows and ${selectedColumns.length} columns`, 'success');
+                    
+                    setTimeout(() => {
+                        document.getElementById('progressContainer').classList.remove('show');
+                    }, 3000);
+                    
+                } catch (error) {
+                    console.error('Conversion error:', error);
+                    showStatus('Error creating Excel file: ' + error.message, 'error');
+                    document.getElementById('progressContainer').classList.remove('show');
+                }
+            }, 100);
+        }
+
+        function updateProgress(percent, text) {
+            document.getElementById('progressFill').style.width = percent + '%';
+            document.getElementById('progressText').textContent = text;
+        }
+
+        function showStatus(message, type) {
+            const statusEl = document.getElementById('statusMessage');
+            statusEl.textContent = message;
+            statusEl.className = 'status-message show ' + type;
+            
+            setTimeout(() => {
+                statusEl.classList.remove('show');
+            }, 5000);
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+    </script>
+</body>
+</html>
